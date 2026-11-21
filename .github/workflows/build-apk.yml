@@ -1,0 +1,74 @@
+# فعال‌سازی: هر وقت pushing/uploading به گیت‌هاب انجام می‌شود،
+# این workflow، پروژه را از zipِ آپلود شده extra می‌کند، APK را build می‌کند
+# و آن را به عنوان artifact در دسترس قرار می‌دهد (برای دانلود/نصب).
+name: Build APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android/actions/setup-android@v3
+
+      - name: Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      # ── اگر zipی در root آپلود شده، آن را extra می‌کنیم ──
+      - name: Extract project zip (if uploaded)
+        run: |
+          if [ -f VpnForge.zip ]; then
+            echo "Extracting VpnForge.zip ..."
+            unzip -o VpnForge.zip
+          fi
+          ls -la
+
+      # ── مشخص کردن مسیرِ پروژه (در root یا در subfolderِ VpnForge) ──
+      - name: Locate project
+        run: |
+          if [ -f settings.gradle.kts ]; then
+            echo "PROJECT_DIR=.." >> "$GITHUB_ENV"
+          elif [ -f VpnForge/settings.gradle.kts ]; then
+            echo "PROJECT_DIR=VpnForge" >> "$GITHUB_ENV"
+          else
+            echo "::error::Project (settings.gradle.kts) not found!"
+            exit 1
+          fi
+          echo "Project dir: $PROJECT_DIR"
+
+      # ── ساختِ Gradle wrapper با versionِ متناسب ──
+      - name: Generate Gradle wrapper (Gradle 8.7)
+        run: |
+          cd "$PROJECT_DIR"
+          gradle wrapper --gradle-version 8.7 --no-daemon
+
+      # ── Buildِ Release APK ──
+      - name: Build Release APK
+        run: |
+          cd "$PROJECT_DIR"
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Show APK output
+        run: |
+          cd "$PROJECT_DIR"
+          ls -l app/build/outputs/apk/release/
+
+      # ── آپلود APK به عنوان artifact (برای دانلود) ──
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-release
+          path: "${{ env.PROJECT_DIR }}/app/build/outputs/apk/release/*.apk"
