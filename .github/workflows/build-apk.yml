@@ -1,6 +1,3 @@
-# فعال‌سازی: هر وقت pushing/uploading به گیت‌هاب انجام می‌شود،
-# این workflow، پروژه را از zipِ آپلود شده extra می‌کند، APK را build می‌کند
-# و آن را به عنوان artifact در دسترس قرار می‌دهد (برای دانلود/نصب).
 name: Build APK
 
 on:
@@ -22,21 +19,11 @@ jobs:
           java-version: '17'
 
       - name: Set up Android SDK
-        uses: android/actions/setup-android@v3
+        uses: android-actions/setup-android@v3
 
       - name: Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
-      # ── اگر zipی در root آپلود شده، آن را extra می‌کنیم ──
-      - name: Extract project zip (if uploaded)
-        run: |
-          if [ -f VpnForge.zip ]; then
-            echo "Extracting VpnForge.zip ..."
-            unzip -o VpnForge.zip
-          fi
-          ls -la
-
-      # ── مشخص کردن مسیرِ پروژه (در root یا در subfolderِ VpnForge) ──
       - name: Locate project
         run: |
           if [ -f settings.gradle.kts ]; then
@@ -49,13 +36,14 @@ jobs:
           fi
           echo "Project dir: $PROJECT_DIR"
 
-      # ── ساختِ Gradle wrapper با versionِ متناسب ──
-      - name: Generate Gradle wrapper (Gradle 8.7)
+      - name: Ensure Gradle wrapper
         run: |
           cd "$PROJECT_DIR"
-          gradle wrapper --gradle-version 8.7 --no-daemon
+          if [ ! -x ./gradlew ]; then
+            echo "Generating Gradle wrapper..."
+            gradle wrapper --gradle-version 8.7 --no-daemon
+          fi
 
-      # ── Buildِ Release APK ──
       - name: Build Release APK
         run: |
           cd "$PROJECT_DIR"
@@ -66,7 +54,6 @@ jobs:
           cd "$PROJECT_DIR"
           ls -l app/build/outputs/apk/release/
 
-      # ── آپلود APK به عنوان artifact (برای دانلود) ──
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
